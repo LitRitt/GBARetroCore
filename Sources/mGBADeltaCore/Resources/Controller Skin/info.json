@@ -1,0 +1,92 @@
+{
+  "name": "Standard GBA",
+  "identifier": "com.delta.gba.standard",
+  "gameTypeIdentifier": "com.rileytestut.delta.game.gba",
+  "debug": false,
+  "representations": {
+    "iphone": {
+      "standard": {
+        "portrait": {
+          "assets": {
+            "large": "standard-preview.png"
+          },
+          "mappingSize": {
+            "width": 400,
+            "height": 200
+          }
+        },
+        "landscape": {
+          "assets": {
+            "large": "standard-preview.png"
+          },
+          "mappingSize": {
+            "width": 400,
+            "height": 200
+          }
+        }
+      },
+      "edgeToEdge": {
+        "portrait": {
+          "assets": {
+            "large": "standard-preview.png"
+          },
+          "mappingSize": {
+            "width": 400,
+            "height": 200
+          }
+        },
+        "landscape": {
+          "assets": {
+            "large": "standard-preview.png"
+          },
+          "mappingSize": {
+            "width": 400,
+            "height": 200
+          }
+        }
+      }
+    },
+    "ipad": {
+      "standard": {
+        "portrait": {
+          "assets": {
+            "large": "standard-preview.png"
+          },
+          "mappingSize": {
+            "width": 400,
+            "height": 200
+          }
+        },
+        "landscape": {
+          "assets": {
+            "large": "standard-preview.png"
+          },
+          "mappingSize": {
+            "width": 400,
+            "height": 200
+          }
+        }
+      },
+      "splitView": {
+        "portrait": {
+          "assets": {
+            "large": "standard-preview.png"
+          },
+          "mappingSize": {
+            "width": 400,
+            "height": 200
+          }
+        },
+        "landscape": {
+          "assets": {
+            "large": "standard-preview.png"
+          },
+          "mappingSize": {
+            "width": 400,
+            "height": 200
+          }
+        }
+      }
+    }
+  }
+}
