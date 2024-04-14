@@ -1,6 +1,0 @@
-module mGBABridge {
-    header "mGBAEmulatorBridge.h"
-    header "mGBCEmulatorBridge.h"
-    header "mGBATypes.h"
-    export *
-}

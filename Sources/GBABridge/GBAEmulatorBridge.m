@@ -1,12 +1,13 @@
 //
-//  mGBCEmulatorBridge.m
-//  mGBCBridge
+//  GBAEmulatorBridge.h
+//  GBABridge
 //
-//  Created by Chris Rittenhouse on 3/21/24.
+//  Created by Ian Clawson on 7/26/21.
+//  Copyright © 2021 Riley Testut. All rights reserved.
 //
 
-#import "mGBCEmulatorBridge.h"
-#import "mGBATypes.h"
+#import "GBAEmulatorBridge.h"
+#import "GBATypes.h"
 
 #import <CoreMotion/CoreMotion.h>
 
@@ -16,23 +17,26 @@
 #include <mgba/core/core.h>
 #include <mgba/core/cheats.h>
 #include <mgba/core/serialize.h>
-#include <mgba/gb/core.h>
-#include <mgba/internal/gb/cheats.h>
-#include <mgba/internal/gb/input.h>
-#include <mgba/internal/gb/overrides.h>
+#include <mgba/gba/core.h>
+#include <mgba/gba/interface.h>
+#include <mgba/internal/gba/cheats.h>
+#include <mgba/internal/gba/input.h>
 #include <mgba-util/circle-buffer.h>
 #include <mgba-util/memory.h>
 #include <mgba-util/vfs.h>
-#include <mgba/gb/interface.h>
 
 #define SAMPLES 1024
 
 @import Foundation;
 
-@import DeltaCore;
-@import mGBASwift;
+@import RetroCore;
+@import GBASwift;
 
-@interface mGBCEmulatorBridge ()
+const char* const binaryName = "mGBA";
+const char* const projectName = "GBARetroCore";
+const char* const projectVersion = "0.10.3";
+
+@interface GBAEmulatorBridge ()
 {
     struct mCore* core;
 }
@@ -56,6 +60,7 @@ static void _log(struct mLogger* log,
 static struct mLogger logger = { .log = _log };
 
 static struct mRotationSource rotation;
+static double_t gyroscopeSensitivity = 1.0;
 static double_t accelerometerSensitivity = 1.0;
 static int8_t orientation;
 static int32_t tiltX = 0;
@@ -66,14 +71,17 @@ static struct mRumble rumble;
 static int rumbleUp = 0;
 static int rumbleDown = 0;
 
-@implementation mGBCEmulatorBridge
+static struct GBALuminanceSource lux;
+static uint8_t luxLevel = 0;
+
+@implementation GBAEmulatorBridge
 @synthesize audioRenderer = _audioRenderer;
 @synthesize videoRenderer = _videoRenderer;
 @synthesize saveUpdateHandler = _saveUpdateHandler;
 
 + (instancetype)sharedBridge
 {
-    static mGBCEmulatorBridge *_emulatorBridge = nil;
+    static GBAEmulatorBridge *_emulatorBridge = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         _emulatorBridge = [[self alloc] init];
@@ -87,47 +95,39 @@ static int rumbleDown = 0;
     self = [super init];
     if (self)
     {
-        core = GBCoreCreate();
+        core = GBACoreCreate();
         mCoreInitConfig(core, nil);
         
         mLogSetDefaultLogger(&logger);
         
         struct mCoreOptions options = { .skipBios = true };
         mCoreConfigLoadDefaults(&core->config, &options);
-        
         core->init(core);
         
         _motionManager = [[CMMotionManager alloc] init];
-        rotation.sample = _sampleRotationGBC;
-        rotation.readTiltX = _readTiltXGBC;
-        rotation.readTiltY = _readTiltYGBC;
-        rotation.readGyroZ = _readGyroZGBC;
+        rotation.sample = _sampleRotationGBA;
+        rotation.readTiltX = _readTiltXGBA;
+        rotation.readTiltY = _readTiltYGBA;
+        rotation.readGyroZ = _readGyroZGBA;
         
         _impactGenerator = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleHeavy];
-        rumble.setRumble = _setRumbleGBC;
+        rumble.setRumble = _setRumbleGBA;
+        
+        lux.sample = _sampleLuminanceGBA;
+        lux.readLuminance = _readLuminanceGBA;
         
         core->setPeripheral(core, mPERIPH_ROTATION, &rotation);
         core->setPeripheral(core, mPERIPH_RUMBLE, &rumble);
+        core->setPeripheral(core, mPERIPH_GBA_LUMINANCE, &lux);
         
         _frameskip = 0;
         _orientation = 0;
+        _forceGBP = NO;
+        _luxLevel = 0;
         _rumbleIntensity = 1;
+        _idleOptimization = @"Remove Known";
+        _gyroscopeSensitivity = 1;
         _accelerometerSensitivity = 1;
-        _palette0color0 = 0;
-        _palette0color1 = 0;
-        _palette0color2 = 0;
-        _palette0color3 = 0;
-        _palette1color0 = 0;
-        _palette1color1 = 0;
-        _palette1color2 = 0;
-        _palette1color3 = 0;
-        _palette2color0 = 0;
-        _palette2color1 = 0;
-        _palette2color2 = 0;
-        _palette2color3 = 0;
-        _gbModel = @"Autodetect";
-        _sgbBorders = YES;
-        _paletteLookup = @"Fallback";
     }
     
     return self;
@@ -166,12 +166,12 @@ static int rumbleDown = 0;
 
 - (void)stop
 {
-    [self deactivateAccelerometer];
+    [self deactivateGyroscopeAndAccelerometer];
 }
 
 - (void)pause
 {
-    [self deactivateAccelerometer];
+    [self deactivateGyroscopeAndAccelerometer];
 }
 
 - (void)resume
@@ -183,15 +183,6 @@ static int rumbleDown = 0;
 - (void)runFrameAndProcessVideo:(BOOL)processVideo
 {
     core->runFrame(core);
-    
-    unsigned width, height;
-    core->currentVideoSize(core, &width, &height);
-    
-    CGRect viewport = CGRectMake(0, 0, width, height);
-    if (!CGRectEqualToRect(viewport, self.videoRenderer.viewport))
-    {
-        self.videoRenderer.viewport = viewport;
-    }
 
     int16_t samples[SAMPLES * 2];
     size_t available = 0;
@@ -209,6 +200,7 @@ static int rumbleDown = 0;
     
     if (rumbleUp)
     {
+        //TODO: Rumble Inensity
         [_impactGenerator impactOccurredWithIntensity:_rumbleIntensity];
     }
     rumbleUp = 0;
@@ -229,16 +221,16 @@ static int rumbleDown = 0;
 
 - (void)resetInputs
 {
-    core->clearKeys(core, 1 << mGBAGameInputUp);
-    core->clearKeys(core, 1 << mGBAGameInputDown);
-    core->clearKeys(core, 1 << mGBAGameInputLeft);
-    core->clearKeys(core, 1 << mGBAGameInputRight);
-    core->clearKeys(core, 1 << mGBAGameInputA);
-    core->clearKeys(core, 1 << mGBAGameInputB);
-    core->clearKeys(core, 1 << mGBAGameInputL);
-    core->clearKeys(core, 1 << mGBAGameInputR);
-    core->clearKeys(core, 1 << mGBAGameInputStart);
-    core->clearKeys(core, 1 << mGBAGameInputSelect);
+    core->clearKeys(core, 1 << GBAGameInputUp);
+    core->clearKeys(core, 1 << GBAGameInputDown);
+    core->clearKeys(core, 1 << GBAGameInputLeft);
+    core->clearKeys(core, 1 << GBAGameInputRight);
+    core->clearKeys(core, 1 << GBAGameInputA);
+    core->clearKeys(core, 1 << GBAGameInputB);
+    core->clearKeys(core, 1 << GBAGameInputL);
+    core->clearKeys(core, 1 << GBAGameInputR);
+    core->clearKeys(core, 1 << GBAGameInputStart);
+    core->clearKeys(core, 1 << GBAGameInputSelect);
 }
 
 #pragma mark - Game Saves -
@@ -269,25 +261,27 @@ static int rumbleDown = 0;
 
 #pragma mark - Sensors -
 
-- (void)activateAccelerometer
+- (void)activateGyroscopeAndAccelerometer
 {
-    if ([self.motionManager isAccelerometerActive] || ![self.motionManager isAccelerometerAvailable])
+    if (([self.motionManager isGyroActive] && [self.motionManager isAccelerometerActive]) || ![self.motionManager isGyroAvailable] || ![self.motionManager isAccelerometerAvailable])
     {
         return;
     }
     
+    [self.motionManager startGyroUpdates];
     [self.motionManager startAccelerometerUpdates];
     
     [[NSNotificationCenter defaultCenter] postNotificationName:GBADidActivateGyroNotification object:self];
 }
 
-- (void)deactivateAccelerometer
+- (void)deactivateGyroscopeAndAccelerometer
 {
-    if (![self.motionManager isAccelerometerActive])
+    if (!([self.motionManager isGyroActive] || [self.motionManager isAccelerometerActive]))
     {
         return;
     }
     
+    [self.motionManager stopGyroUpdates];
     [self.motionManager stopAccelerometerUpdates];
     
     [[NSNotificationCenter defaultCenter] postNotificationName:GBADidDeactivateGyroNotification object:self];
@@ -308,7 +302,7 @@ static int rumbleDown = 0;
         cheatSet->copyProperties(cheatSet, *mCheatSetsGetPointer(&cheats->cheats, size - 1));
     }
     
-    int codeType = GB_CHEAT_AUTODETECT;
+    int codeType = GBA_CHEAT_AUTODETECT;
     
     NSArray *codeSet = [cheatCode componentsSeparatedByString:@"\n"];
     for (id codeLine in codeSet) {
@@ -347,68 +341,23 @@ static int rumbleDown = 0;
         .volume = 0x100,
     };
     
-    // Device Model
-    enum GBModel* model;
-    const char* modelName;
-
-    if (strcmp([_gbModel UTF8String], "Game Boy") == 0) {
-        model = GB_MODEL_DMG;
-    } else if (strcmp([_gbModel UTF8String], "Super Game Boy") == 0) {
-        model = GB_MODEL_SGB;
-    } else if (strcmp([_gbModel UTF8String], "Game Boy Color") == 0) {
-        model = GB_MODEL_CGB;
-    } else if (strcmp([_gbModel UTF8String], "Game Boy Advance") == 0) {
-        model = GB_MODEL_AGB;
-    } else {
-        model = GB_MODEL_AUTODETECT;
-    }
-
-    modelName = GBModelToName(model);
-    mCoreConfigSetValue(&core->config, "gb.model", modelName);
-    mCoreConfigSetValue(&core->config, "sgb.model", modelName);
-    mCoreConfigSetValue(&core->config, "cgb.model", modelName);
-    mCoreConfigSetValue(&core->config, "cgb.hybridModel", modelName);
-    mCoreConfigSetValue(&core->config, "cgb.sgbModel", modelName);
-    core->reloadConfigOption(core, "gb.model", NULL);
-    core->reloadConfigOption(core, "sgb.model", NULL);
-    core->reloadConfigOption(core, "cgb.model", NULL);
-    core->reloadConfigOption(core, "cgb.hybridModel", NULL);
-    core->reloadConfigOption(core, "cgb.sgbModel", NULL);
-
-    // Super Game Boy Borders
-    mCoreConfigSetIntValue(&core->config, "sgb.borders", _sgbBorders);
-    core->reloadConfigOption(core, "sgb.borders", NULL);
+    // Force Game Boy Player
+    mCoreConfigSetIntValue(&core->config, "gba.forceGbp", _forceGBP);
+    core->reloadConfigOption(core, "gba.forceGbp", NULL);
     
-    // Palette Lookup
-    int gbColorLookup;
+    // Idle Optimization
+    const char* idleOptimization;
     
-    if (strcmp([_paletteLookup UTF8String], "Fallback") == 0) {
-        gbColorLookup = GB_COLORS_SGB_CGB_FALLBACK;
-    } else if (strcmp([_paletteLookup UTF8String], "Super Game Boy") == 0) {
-        gbColorLookup = GB_COLORS_SGB;
-    } else if (strcmp([_paletteLookup UTF8String], "Game Boy Color") == 0) {
-        gbColorLookup = GB_COLORS_CGB;
-    } else if (strcmp([_paletteLookup UTF8String], "None") == 0) {
-        gbColorLookup = GB_COLORS_NONE;
+    if (strcmp([_idleOptimization UTF8String], "Don't Remove") == 0) {
+        idleOptimization = "ignore";
+    } else if (strcmp([_idleOptimization UTF8String], "Remove Known") == 0) {
+        idleOptimization = "remove";
+    } else if (strcmp([_idleOptimization UTF8String], "Detect and Remove") == 0) {
+        idleOptimization = "detect";
     }
     
-    mCoreConfigSetUIntValue(&core->config, "gb.colors", gbColorLookup);
-    core->reloadConfigOption(core, "gb.colors", NULL);
-    
-    // Custom Palettes
-    mCoreConfigSetUIntValue(&core->config, "gb.pal[0]", _palette0color0);
-    mCoreConfigSetUIntValue(&core->config, "gb.pal[1]", _palette0color1);
-    mCoreConfigSetUIntValue(&core->config, "gb.pal[2]", _palette0color2);
-    mCoreConfigSetUIntValue(&core->config, "gb.pal[3]", _palette0color2);
-    mCoreConfigSetUIntValue(&core->config, "gb.pal[4]", _palette1color0);
-    mCoreConfigSetUIntValue(&core->config, "gb.pal[5]", _palette1color1);
-    mCoreConfigSetUIntValue(&core->config, "gb.pal[6]", _palette1color2);
-    mCoreConfigSetUIntValue(&core->config, "gb.pal[7]", _palette1color3);
-    mCoreConfigSetUIntValue(&core->config, "gb.pal[8]", _palette2color0);
-    mCoreConfigSetUIntValue(&core->config, "gb.pal[9]", _palette2color1);
-    mCoreConfigSetUIntValue(&core->config, "gb.pal[10]", _palette2color2);
-    mCoreConfigSetUIntValue(&core->config, "gb.pal[11]", _palette2color3);
-    core->reloadConfigOption(core, "gb.pal", NULL);
+    mCoreConfigSetValue(&core->config, "idleOptimization", idleOptimization);
+    core->reloadConfigOption(core, "idleOptimization", NULL);
     
     // Frameskip
     opts.frameskip = _frameskip;
@@ -416,22 +365,27 @@ static int rumbleDown = 0;
     mCoreConfigLoadDefaults(&core->config, &opts);
     mCoreLoadConfig(core);
     
-    // Accelerometer
+    // Sensors
+    gyroscopeSensitivity = _gyroscopeSensitivity;
     accelerometerSensitivity = _accelerometerSensitivity;
     orientation = _orientation;
+    luxLevel = _luxLevel;
 }
 
-#pragma mark - mGBA -
+#pragma mark - mGBA Sensors -
 
-void _sampleRotationGBC(struct mRotationSource* source)
+void _sampleRotationGBA(struct mRotationSource* source)
 {
     UNUSED(source);
-    if (![mGBCEmulatorBridge.sharedBridge.motionManager isAccelerometerActive])
+    if (!([GBAEmulatorBridge.sharedBridge.motionManager isGyroActive] && [GBAEmulatorBridge.sharedBridge.motionManager isAccelerometerActive]))
     {
-        [mGBCEmulatorBridge.sharedBridge activateAccelerometer];
+        [GBAEmulatorBridge.sharedBridge activateGyroscopeAndAccelerometer];
     }
     
-    CMAccelerometerData *accelerometerData = mGBCEmulatorBridge.sharedBridge.motionManager.accelerometerData;
+    CMGyroData *gyroData = GBAEmulatorBridge.sharedBridge.motionManager.gyroData;
+    CMAccelerometerData *accelerometerData = GBAEmulatorBridge.sharedBridge.motionManager.accelerometerData;
+    
+    gyroZ = gyroData.rotationRate.z * -1e8f * gyroscopeSensitivity;
     
     switch (orientation)
     {
@@ -457,25 +411,25 @@ void _sampleRotationGBC(struct mRotationSource* source)
     }
 }
 
-int32_t _readTiltXGBC(struct mRotationSource* source)
+int32_t _readTiltXGBA(struct mRotationSource* source)
 {
     UNUSED(source);
     return tiltX;
 }
 
-int32_t _readTiltYGBC(struct mRotationSource* source)
+int32_t _readTiltYGBA(struct mRotationSource* source)
 {
     UNUSED(source);
     return tiltY;
 }
 
-int32_t _readGyroZGBC(struct mRotationSource* source)
+int32_t _readGyroZGBA(struct mRotationSource* source)
 {
     UNUSED(source);
-    return 0;
+    return gyroZ;
 }
 
-void _setRumbleGBC(struct mRumble* rumble, int enable)
+void _setRumbleGBA(struct mRumble* rumble, int enable)
 {
     UNUSED(rumble);
     
@@ -484,6 +438,24 @@ void _setRumbleGBC(struct mRumble* rumble, int enable)
     } else {
         ++rumbleDown;
     }
+}
+
+void _sampleLuminanceGBA(struct GBALuminanceSource* source)
+{
+    UNUSED(source);
+}
+
+uint8_t _readLuminanceGBA(struct GBALuminanceSource* source)
+{
+    UNUSED(source);
+    int value = 0x16;
+    
+    if (luxLevel > 0 && luxLevel <= 10)
+    {
+        value += GBA_LUX_LEVELS[luxLevel - 1];
+    }
+    
+    return 0xFF - value;
 }
 
 @end

@@ -1,16 +1,12 @@
 //
-//  mGBATypes.h
-//  mGBADeltaCore
+//  GBATypes.h
+//  GBARetroCore
 //
-//  Created by Ian Clawson on 7/26/21.
-//  Copyright © 2021 Riley Testut. All rights reserved.
+//  Created by Chris Rittenhouse on 4/13/24.
+//  Copyright © 2024 Lit Apps. All rights reserved.
 //
 
-#if SWIFT_PACKAGE
-@import CDeltaCore;
-#else
-@import DeltaCore;
-#endif
+@import CRetroCore;
 
 // Extensible Enums
 FOUNDATION_EXPORT GameType const GameTypeGBA NS_SWIFT_NAME(gba);

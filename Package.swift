@@ -4,43 +4,43 @@
 import PackageDescription
 
 let package = Package(
-    name: "mGBADeltaCore",
+    name: "GBARetroCore",
     platforms: [
         .iOS(.v14)
     ],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.
         .library(
-            name: "mGBADeltaCore",
-            targets: ["mGBADeltaCore"]),
+            name: "GBARetroCore",
+            targets: ["GBARetroCore"]),
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
-        .package(url: "https://github.com/LitRitt/DeltaCore.git", .branch("main"))
+        .package(url: "https://github.com/LitRitt/RetroCore.git", .branch("main"))
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
         // Targets can depend on other targets in this package, and on products in packages this package depends on.
         .target(
-            name: "mGBADeltaCore",
-            dependencies: ["DeltaCore", "mGBA", "mGBASwift", "mGBABridge"],
+            name: "GBARetroCore",
+            dependencies: ["RetroCore", "mGBA", "GBASwift", "GBABridge"],
             exclude: [
                 "Resources/Controller Skin/info.json"
             ],
             resources: [
                 .copy("Resources/Controller Skin/Standard.ignitedskin"),
-                .copy("Resources/Controller Skin/Standard-com.rileytestut.mGBCDeltaCore.ignitedskin"),
+                .copy("Resources/Controller Skin/Standard-com.rileytestut.GBCRetroCore.ignitedskin"),
                 .copy("Resources/Standard.deltamapping"),
-                .copy("Resources/Standard-com.rileytestut.mGBCDeltaCore.deltamapping"),
+                .copy("Resources/Standard-com.rileytestut.GBCRetroCore.deltamapping"),
             ]
         ),
         .target(
-            name: "mGBASwift",
-            dependencies: ["DeltaCore"]
+            name: "GBASwift",
+            dependencies: ["RetroCore"]
         ),
         .target(
-            name: "mGBABridge",
-            dependencies: ["DeltaCore", "mGBA", "mGBASwift"],
+            name: "GBABridge",
+            dependencies: ["RetroCore", "mGBA", "GBASwift"],
             publicHeadersPath: "",
             cSettings: [
                 .headerSearchPath("../mGBA/"),

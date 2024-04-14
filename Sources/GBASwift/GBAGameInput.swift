@@ -1,16 +1,16 @@
 //
-//  mGBAGameInput.swift
-//  mGBADeltaCore
+//  GBAGameInput.swift
+//  GBADeltaCore
 //
 //  Created by Ian Clawson on 7/26/21.
 //  Copyright © 2021 Riley Testut. All rights reserved.
 //
 
 
-import DeltaCore
+import RetroCore
 
-// Declared in mGBASwift so we can use it from mGBABridge.
-@objc public enum mGBAGameInput: Int, _Input
+// Declared in GBASwift so we can use it from mGBABridge.
+@objc public enum GBAGameInput: Int, _Input
 {
     case up = 6
     case down = 7
@@ -24,7 +24,7 @@ import DeltaCore
     case select = 2
 }
 
-@objc public enum mGBCGameInput: Int, _Input
+@objc public enum GBCGameInput: Int, _Input
 {
     case up = 6
     case down = 7

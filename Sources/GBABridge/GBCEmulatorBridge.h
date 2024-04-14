@@ -1,6 +1,6 @@
 //
-//  mGBCEmulatorBridge.h
-//  mGBCBridge
+//  GBCEmulatorBridge.h
+//  GBCBridge
 //
 //  Created by Chris Rittenhouse on 3/21/24.
 //
@@ -13,10 +13,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Weverything" // Silence "Cannot find protocol definition" warning due to forward declaration.
-@interface mGBCEmulatorBridge : NSObject <DLTAEmulatorBridging>
+@interface GBCEmulatorBridge : NSObject <DLTAEmulatorBridging>
 #pragma clang diagnostic pop
 
-@property (class, nonatomic, readonly) mGBCEmulatorBridge *sharedBridge;
+@property (class, nonatomic, readonly) GBCEmulatorBridge *sharedBridge;
 
 @property (nonatomic) UInt32 palette0color0;
 @property (nonatomic) UInt32 palette0color1;

@@ -9,33 +9,33 @@
 import Foundation
 import AVFoundation
 
-import DeltaCore
-@_exported import mGBABridge
-@_exported import mGBASwift
+import RetroCore
+@_exported import GBABridge
+@_exported import GBASwift
 
-extension mGBAGameInput: Input
+extension GBAGameInput: Input
 {
     public var type: InputType {
         return .game(.gba)
     }
 }
 
-extension mGBCGameInput: Input
+extension GBCGameInput: Input
 {
     public var type: InputType {
         return .game(.gbc)
     }
 }
 
-public struct mGBA: DeltaCoreProtocol
+public struct GBA: RetroCoreProtocol
 {
-    public static let core = mGBA()
+    public static let core = GBA()
     
-    public var name: String { "mGBA" }
-    public var identifier: String { "com.rileytestut.mGBADeltaCore" }
+    public var name: String { "GBA" }
+    public var identifier: String { "com.litritt.GBARetroCore" }
     
     public var gameType: GameType { .gba }
-    public var gameInputType: Input.Type { mGBAGameInput.self }
+    public var gameInputType: Input.Type { GBAGameInput.self }
     public var gameSaveFileExtension: String { "sav" }
     
     public let audioFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 32768, channels: 2, interleaved: true)!
@@ -48,7 +48,7 @@ public struct mGBA: DeltaCoreProtocol
         return [actionReplayFormat, gameSharkFormat, codeBreakerFormat]
     }
 
-    public var emulatorBridge: EmulatorBridging { mGBAEmulatorBridge.shared as! EmulatorBridging }
+    public var emulatorBridge: EmulatorBridging { GBAEmulatorBridge.shared as! EmulatorBridging }
     
     public var resourceBundle: Bundle { Bundle.module }
     
@@ -57,15 +57,15 @@ public struct mGBA: DeltaCoreProtocol
     }
 }
 
-public struct mGBC: DeltaCoreProtocol
+public struct GBC: RetroCoreProtocol
 {
-    public static let core = mGBC()
+    public static let core = GBC()
     
-    public var name: String { "mGBC" }
-    public var identifier: String { "com.rileytestut.mGBCDeltaCore" }
+    public var name: String { "GBC" }
+    public var identifier: String { "com.litritt.GBCRetroCore" }
     
     public var gameType: GameType { .gbc }
-    public var gameInputType: Input.Type { mGBCGameInput.self }
+    public var gameInputType: Input.Type { GBCGameInput.self }
     public var gameSaveFileExtension: String { "sav" }
     
     public let audioFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 32768, channels: 2, interleaved: true)!
@@ -77,7 +77,7 @@ public struct mGBC: DeltaCoreProtocol
         return [gameGenieFormat, gameSharkFormat]
     }
 
-    public var emulatorBridge: EmulatorBridging { mGBCEmulatorBridge.shared as! EmulatorBridging }
+    public var emulatorBridge: EmulatorBridging { GBCEmulatorBridge.shared as! EmulatorBridging }
     
     public var resourceBundle: Bundle { Bundle.module }
     
