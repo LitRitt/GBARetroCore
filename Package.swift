@@ -28,10 +28,10 @@ let package = Package(
                 "Resources/Controller Skin/info.json"
             ],
             resources: [
-                .copy("Resources/Controller Skin/Standard.ignitedskin"),
-                .copy("Resources/Controller Skin/Standard-com.rileytestut.GBCRetroCore.ignitedskin"),
-                .copy("Resources/Standard.deltamapping"),
-                .copy("Resources/Standard-com.rileytestut.GBCRetroCore.deltamapping"),
+                .copy("Resources/Controller Skin/Standard.retroskin"),
+                .copy("Resources/Controller Skin/Standard-com.litritt.GBCRetroCore.retroskin"),
+                .copy("Resources/Standard.retromapping"),
+                .copy("Resources/Standard-com.litritt.GBCRetroCore.retromapping"),
             ]
         ),
         .target(
