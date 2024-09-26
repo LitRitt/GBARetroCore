@@ -13,6 +13,12 @@ import RetroCore
 @_exported import GBABridge
 @_exported import GBASwift
 
+public extension GBA
+{
+    static let didActivateGyroNotification = NSNotification.Name.__GBADidActivateGyro
+    static let didDeactivateGyroNotification = NSNotification.Name.__GBADidDeactivateGyro
+}
+
 extension GBAGameInput: Input
 {
     public var type: InputType {
